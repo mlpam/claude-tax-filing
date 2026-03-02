@@ -97,28 +97,11 @@ If the user has stock/option sales:
 
 ### Step 7: Download Blank PDF Forms
 
-Use the download helper script:
+Find and download the correct blank PDF forms for the tax year and state being filed. Search the relevant tax authority websites:
+- **Federal**: irs.gov (look under Forms & Instructions)
+- **State**: the state's tax authority website (e.g. ftb.ca.gov for CA, dor.wa.gov for WA)
 
-```bash
-python scripts/download_forms.py YEAR OUTPUT_DIR --state CA
-```
-
-This downloads f1040, f8949, f1040sd from IRS and the 540 from FTB, validates each is a real PDF, and saves as `*_blank.pdf`.
-
-If the script fails, download manually. **Critical**: Use `/irs-prior/` for non-current-year forms.
-
-```
-# Federal forms - from IRS (replace YEAR with e.g. 2025)
-https://www.irs.gov/pub/irs-prior/f1040--YEAR.pdf
-https://www.irs.gov/pub/irs-prior/f8949--YEAR.pdf
-https://www.irs.gov/pub/irs-prior/f1040sd--YEAR.pdf
-
-# If current year, try /irs-pdf/ first:
-https://www.irs.gov/pub/irs-pdf/f1040.pdf
-
-# California - from FTB
-https://www.ftb.ca.gov/forms/YEAR/YEAR-540.pdf
-```
+Download each form needed (1040, 8949, Schedule D, state return, etc.) and save as `*_blank.pdf` in the working directory. Verify each download is a real PDF (not an HTML error page).
 
 ### Step 8: Discover Field Names & Fill PDF Forms
 
@@ -257,5 +240,5 @@ If they decline, explain that without direct deposit their refund will arrive by
 - Radio buttons (filing status, account type) use named AP keys — inspect `/AP/N` keys to find the correct value
 
 ### Downloading Forms
-- For prior-year IRS forms: use `irs.gov/pub/irs-prior/` (NOT `/irs-pdf/`)
-- `/irs-pdf/` always has the **current** year's forms
+- Always verify downloads are real PDFs (check for `%PDF-` header), not HTML error pages
+- Form URLs change between tax authorities and years — search the relevant website rather than guessing URLs
