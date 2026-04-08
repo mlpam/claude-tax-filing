@@ -16,6 +16,11 @@ Prepare federal and state income tax returns: read source documents, compute tax
 
 **Year-agnostic** — always look up current-year brackets, deductions, and credits. Never reuse prior-year values.
 
+## Supported States
+
+- **California** — Form 540 (progressive brackets, exemption credits)
+- **Colorado** — Form DR 0104 (flat 4.4% rate on federal taxable income with adjustments)
+
 ## Folder Structure
 
 Organize all work into subfolders of the working directory:
@@ -29,19 +34,22 @@ working_dir/
     f1040_fields.json  ← field discovery dumps
     f8949_fields.json
     f1040sd_fields.json
-    ca540_fields.json
+    ca540_fields.json  ← (California filers)
+    dr0104_fields.json ← (Colorado filers)
     expected_*.json    ← verification expected values
   forms/               ← blank downloaded PDF forms
     f1040_blank.pdf
     f8949_blank.pdf
     f1040sd_blank.pdf
-    ca540_blank.pdf
+    ca540_blank.pdf    ← (California filers)
+    dr0104_blank.pdf   ← (Colorado filers)
   output/              ← final filled PDFs + fill script
     fill_YEAR.py       ← the fill script
     f1040_filled.pdf
     f8949_filled.pdf
     f1040sd_filled.pdf
-    ca540_filled.pdf
+    ca540_filled.pdf   ← (California filers)
+    dr0104_filled.pdf  ← (Colorado filers)
 ```
 
 Create these folders at the start. Keep the working directory clean — no loose files.
@@ -76,20 +84,37 @@ Save all extracted figures to `work/tax_data.txt` immediately — one section pe
 
 - Filing status (Single, MFJ, MFS, HOH, QSS)
 - Dependents (number, names)
-- State of residence
+- State of residence (California or Colorado)
 - Standard vs. itemized deduction preference
 - Digital asset / cryptocurrency transactions (Yes/No) — stock trades are NOT digital assets
-- Health coverage status (for CA)
 - Any estimated tax payments made
 - Any other credits or adjustments
+
+**State-specific questions:**
+
+**If California:**
+- Health coverage status (for CA)
+
+**If Colorado:**
+- Age 55+ or 65+? (for retirement income subtraction)
+- Any 529 plan contributions? (CO subtraction)
+- Any charitable contributions beyond the federal deduction? (CO subtraction)
+- Any Colorado-source estimated tax payments?
 
 **Do NOT proceed to Step 3 until the user has answered.** "Same as last year" counts as confirmation.
 
 ### Step 3: Look Up Year-Specific Values
 
-Research from IRS.gov and FTB.ca.gov:
+Research from IRS.gov and state tax authority:
 - Federal tax brackets, standard deduction, QDCG 0%/15%/20% thresholds
+
+**If California:** Research from FTB.ca.gov:
 - State tax brackets, standard deduction, personal exemption credit
+
+**If Colorado:** Research from tax.colorado.gov:
+- Colorado flat tax rate (4.4% for 2025)
+- Standard deduction (N/A — Colorado uses federal taxable income as starting point)
+- Any current-year adjustments or credits
 
 Save to `work/computations.txt`.
 
@@ -111,11 +136,37 @@ Save all line values to `work/computations.txt`.
 2. Schedule D: totals, $3,000 loss limitation, carryover calculation
 3. Net gain/loss → 1040 Line 7
 
-### Step 6: Compute State Return (CA Form 540)
+### Step 6: Compute State Return
+
+**California — Form 540:**
 
 1. Federal AGI → CA adjustments → CA taxable income
 2. Tax from brackets − exemption credits → total tax
 3. Withholding → Refund/Owed
+
+**Colorado — Form DR 0104:**
+
+Colorado starts with federal taxable income (1040 Line 15), not AGI.
+
+1. **Line 1**: Federal taxable income (from 1040 Line 15)
+2. **Line 2**: Colorado additions (total from DR 0104AD if needed):
+   - State/local tax deduction addback (if AGI > $300K and itemized)
+   - Other additions (rare for most filers)
+3. **Line 3**: Modified federal taxable income (Line 1 + Line 2)
+4. **Line 4**: Colorado subtractions (total from DR 0104AD if needed):
+   - Retirement/pension income subtraction (age 55–64: up to $20,000; age 65+: up to $24,000)
+   - Colorado 529 plan contributions (up to $20,000 per taxpayer, $30,000 age 65+)
+   - Charitable contribution subtraction (excess over federal standard deduction, if applicable)
+   - State income tax refund (if included in federal income)
+5. **Line 5**: Colorado taxable income (Line 3 − Line 4, minimum 0)
+6. **Line 6**: Colorado tax = Line 5 × **4.40%** (flat rate)
+7. **Line 7–12**: Alternative minimum tax (rare), credits
+8. **Line 13**: Net Colorado tax
+9. **Lines 14–24**: Payments (CO withholding from W-2 Box 17, estimated payments)
+10. **Line 25+**: Refund or amount owed
+11. If refund: direct deposit info (routing, account, type)
+
+Save all line values to `work/computations.txt`.
 
 ### Step 7: Download Blank PDF Forms
 
@@ -130,6 +181,12 @@ https://www.irs.gov/pub/irs-prior/f1040sd--YEAR.pdf
 
 **CA**: `ftb.ca.gov/forms/YEAR/` for state forms.
 
+**CO**: Download from Colorado Department of Revenue:
+```
+https://tax.colorado.gov/sites/tax/files/documents/DR0104_YEAR.pdf
+```
+Replace `YEAR` with the tax year (e.g., `DR0104_2025.pdf`).
+
 Verify each download has `%PDF-` header (not an HTML error page).
 
 ### Step 8: Discover Field Names & Fill Forms
@@ -140,7 +197,16 @@ Verify each download has `%PDF-` header (not an HTML error page).
 python scripts/discover_fields.py forms/f1040_blank.pdf --compact > work/f1040_fields.json
 python scripts/discover_fields.py forms/f8949_blank.pdf --compact > work/f8949_fields.json
 python scripts/discover_fields.py forms/f1040sd_blank.pdf --compact > work/f1040sd_fields.json
+```
+
+**California:**
+```bash
 python scripts/discover_fields.py forms/ca540_blank.pdf --compact > work/ca540_fields.json
+```
+
+**Colorado:**
+```bash
+python scripts/discover_fields.py forms/dr0104_blank.pdf --compact > work/dr0104_fields.json
 ```
 
 `--compact` outputs a minimal `{field_name: description}` mapping — each field name is paired with its tooltip/speak description so you can map line numbers to field names directly without manual inspection. Radio buttons include their option values (e.g. `{"/2": "Single", "/1": "MFJ"}`).
@@ -155,7 +221,9 @@ Write `output/fill_YEAR.py` using `scripts/fill_forms.py`:
 
 - **`add_suffix(d)`** — appends `[0]` to text field keys. Required for IRS forms.
 - **`fill_irs_pdf(in, out, fields, checkboxes, radio_values)`** — IRS forms. `radio_values` for filing status, yes/no, checking/savings.
-- **`fill_pdf(in, out, fields, checkboxes)`** — CA forms. Matches by `/Parent` chain + `/AP/N` keys.
+- **`fill_pdf(in, out, fields, checkboxes)`** — State forms (CA 540, CO DR 0104). Matches by `/Parent` chain + `/AP/N` keys.
+
+**Note:** Colorado DR 0104 uses standard AcroForm (not IRS XFA), so use `fill_pdf()` — same approach as CA 540.
 
 Output filled PDFs to `output/`.
 
@@ -165,6 +233,16 @@ Output filled PDFs to `output/`.
 python scripts/verify_filled.py output/f1040_filled.pdf work/expected_f1040.json
 ```
 
+**California:**
+```bash
+python scripts/verify_filled.py output/ca540_filled.pdf work/expected_ca540.json
+```
+
+**Colorado:**
+```bash
+python scripts/verify_filled.py output/dr0104_filled.pdf work/expected_dr0104.json
+```
+
 Fix any failures, re-run fill script.
 
 ### Step 10: Present Results
@@ -172,9 +250,15 @@ Fix any failures, re-run fill script.
 Show a summary table, verification checklist, capital loss carryover (if any), then:
 
 - **Sign your returns** — unsigned returns are rejected
-- **Payment instructions** (if owed) — IRS Direct Pay, FTB Web Pay, deadline April 15
+- **Payment instructions** (if owed):
+  - IRS: Direct Pay at irs.gov, deadline April 15
+  - CA: FTB Web Pay
+  - CO: Colorado Department of Revenue at revenue.colorado.gov, or Revenue Online
 - **Direct deposit** — recommend it for refunds; ask for bank info if not provided
-- **Filing options** — e-file (Free File, CalFile) or mailing addresses
+- **Filing options**:
+  - Federal: e-file (Free File) or mail
+  - CA: CalFile or mail
+  - CO: Revenue Online (colorado.gov/revenueonline) or mail to Colorado Dept of Revenue
 
 ## Key Gotchas
 
@@ -199,4 +283,5 @@ Show a summary table, verification checklist, capital loss carryover (if any), t
 - **8949**: Box A/B/C checkboxes are 3-way radio buttons. Totals at high field numbers (e.g. `f1_115`-`f1_119`), not after last data row. Schedule D lines 1b/8b (from 8949), not 1a/8a.
 - **Schedule D**: Some fields have `_RO` suffix (read-only) — skip those.
 - **CA 540**: Field names are `540-PPNN` (page+sequence, NOT line numbers). Checkboxes end with `" CB"`, radio buttons use named AP keys.
+- **CO DR 0104**: Standard AcroForm (not XFA). Use `fill_pdf()` not `fill_irs_pdf()`. Field names will be discovered via `--compact` — do NOT assume naming patterns.
 - **Downloads**: Prior-year IRS = `irs.gov/pub/irs-prior/`, current = `irs.gov/pub/irs-pdf/`

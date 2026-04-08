@@ -7,6 +7,7 @@ This Skill helps Claude turn a folder of tax documents into a mostly-complete fi
 - Reads W-2s, 1099s, brokerage statements, and prior-year returns
 - Asks the missing filing questions Claude needs to finish the return
 - Computes federal and state tax results, including capital gains and carryovers
+- Supports **California** (Form 540) and **Colorado** (Form DR 0104) state returns
 - Downloads official blank PDF forms and fills them programmatically
 - Verifies outputs and returns a human-friendly summary of refunds, forms, and next steps
 
@@ -52,6 +53,13 @@ At the end, it gives you a clean summary of refunds, carryovers, and filled form
 
 Skills are not just a single `.md` file anymore. They can also include scripts, code snippets, and example files, which makes them much more powerful.
 
+## Supported States
+
+| State | Form | Tax Structure |
+|-------|------|--------------|
+| California | 540 | Progressive brackets, exemption credits |
+| Colorado | DR 0104 | Flat 4.4% rate on federal taxable income |
+
 ## Contributing
 
-Contributions are welcome via PR.
+Contributions are welcome via PR — adding new states is straightforward.
